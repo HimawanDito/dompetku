@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DompetKu - Pencatatan Keuangan & Google Sheets Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white text-indigo-600 p-2.5 rounded-xl shadow-inner font-bold text-xl flex items-center justify-center w-10 h-10">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">DompetKu Multi-Rekening</h1>
+                    <p class="text-xs text-indigo-200">Kelola Saldo BCA, Mandiri, Cash & Google Sheets</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button type="button" onclick="openModal('syncModal')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm px-3.5 py-2 rounded-lg font-medium transition flex items-center space-x-2 shadow-sm cursor-pointer">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span class="hidden sm:inline">Konek Sheets</span>
+                </button>
+                <button type="button" onclick="openModal('exportModal')" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs sm:text-sm px-3.5 py-2 rounded-lg font-medium transition flex items-center space-x-2 shadow-sm cursor-pointer">
+                    <i class="fa-solid fa-download"></i>
+                    <span class="hidden sm:inline">Ekspor/Panduan</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6 space-y-6">
+        
+        <!-- Navigation Tabs -->
+        <div class="flex space-x-2 border-b border-slate-200 overflow-x-auto pb-2">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-5 py-2.5 rounded-xl font-semibold text-sm transition bg-indigo-600 text-white shadow-sm flex items-center space-x-2 whitespace-nowrap cursor-pointer">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>Dashboard & Rekening</span>
+            </button>
+            <button onclick="switchTab('transactions')" id="tab-transactions" class="px-5 py-2.5 rounded-xl font-semibold text-sm transition bg-white text-slate-600 hover:bg-slate-100 flex items-center space-x-2 whitespace-nowrap cursor-pointer">
+                <i class="fa-solid fa-list-check"></i>
+                <span>Daftar Transaksi</span>
+            </button>
+            <button onclick="switchTab('budget')" id="tab-budget" class="px-5 py-2.5 rounded-xl font-semibold text-sm transition bg-white text-slate-600 hover:bg-slate-100 flex items-center space-x-2 whitespace-nowrap cursor-pointer">
+                <i class="fa-solid fa-bullseye"></i>
+                <span>Target & Anggaran</span>
+            </button>
+            <button onclick="switchTab('guide')" id="tab-guide" class="px-5 py-2.5 rounded-xl font-semibold text-sm transition bg-white text-slate-600 hover:bg-slate-100 flex items-center space-x-2 whitespace-nowrap cursor-pointer">
+                <i class="fa-solid fa-book-open"></i>
+                <span>Panduan Apps Script</span>
+            </button>
+        </div>
+
+        <!-- DASHBOARD VIEW -->
+        <section id="view-dashboard" class="space-y-6">
+            <!-- Account Cards Container -->
+            <div>
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wider">Saldo per Rekening / Dompet</h3>
+                    <button type="button" onclick="openAccountModal()" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold px-3 py-1.5 rounded-lg transition flex items-center space-x-1 cursor-pointer">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Tambah Rekening</span>
+                    </button>
+                </div>
+                <div id="accounts-cards-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Dynamic Accounts -->
+                </div>
+            </div>
+
+            <!-- Summary Monthly Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute right-4 top-4 bg-indigo-50 text-indigo-600 p-3 rounded-2xl text-xl">
+                        <i class="fa-solid fa-wallet"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Semua Saldo</p>
+                        <h3 id="card-balance" class="text-3xl font-extrabold text-slate-800 mt-2">Rp 0</h3>
+                    </div>
+                    <div class="mt-4 flex items-center text-xs text-slate-500">
+                        <span id="balance-status" class="font-medium text-emerald-600 flex items-center">
+                            <i class="fa-solid fa-arrow-up mr-1"></i> Keuangan stabil
+                        </span>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute right-4 top-4 bg-emerald-50 text-emerald-600 p-3 rounded-2xl text-xl">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Pemasukan Bulan Ini</p>
+                        <h3 id="card-income" class="text-3xl font-extrabold text-emerald-600 mt-2">Rp 0</h3>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-500">Akumulasi bulan berjalan</div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute right-4 top-4 bg-rose-50 text-rose-600 p-3 rounded-2xl text-xl">
+                        <i class="fa-solid fa-arrow-trend-down"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Pengeluaran Bulan Ini</p>
+                        <h3 id="card-expense" class="text-3xl font-extrabold text-rose-600 mt-2">Rp 0</h3>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-500">Akumulasi bulan berjalan</div>
+                </div>
+            </div>
+
+            <!-- Quick Action Bar -->
+            <div class="bg-gradient-to-r from-indigo-500 to-violet-600 rounded-2xl p-6 text-white shadow-md flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-bold">Catat Transaksi</h2>
+                    <p class="text-indigo-100 text-sm">Pilih rekening tujuan saat pemasukan atau sumber rekening saat pengeluaran.</p>
+                </div>
+                <div class="flex flex-wrap space-x-2 gap-y-2 w-full sm:w-auto">
+                    <button type="button" onclick="openTransactionModal('income')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow flex items-center space-x-1.5 cursor-pointer">
+                        <i class="fa-solid fa-plus-circle"></i>
+                        <span>+ Pemasukan</span>
+                    </button>
+                    <button type="button" onclick="openTransactionModal('expense')" class="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow flex items-center space-x-1.5 cursor-pointer">
+                        <i class="fa-solid fa-minus-circle"></i>
+                        <span>- Pengeluaran</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- AI Insight Section -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-4">
+                <div class="flex items-center space-x-3 border-b border-slate-100 pb-4">
+                    <div class="bg-amber-100 text-amber-600 p-2.5 rounded-xl text-lg">
+                        <i class="fa-solid fa-brain"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800">Insight Keuangan Pintar</h3>
+                        <p class="text-xs text-slate-500">Analisis otomatis kondisi keuangan multi-rekening</p>
+                    </div>
+                </div>
+                <div id="insight-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Dynamic Insights -->
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center space-x-2">
+                        <i class="fa-solid fa-chart-pie text-indigo-600"></i>
+                        <span>Pengeluaran Berdasarkan Kategori</span>
+                    </h3>
+                    <div class="relative flex-grow flex items-center justify-center" style="min-height: 250px;">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center space-x-2">
+                        <i class="fa-solid fa-chart-line text-indigo-600"></i>
+                        <span>Tren Arus Kas (6 Bulan Terakhir)</span>
+                    </h3>
+                    <div class="relative flex-grow flex items-center justify-center" style="min-height: 250px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TRANSACTIONS VIEW -->
+        <section id="view-transactions" class="space-y-6 hidden">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-4">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800">Riwayat Transaksi</h3>
+                        <p class="text-xs text-slate-500">Daftar seluruh transaksi pemasukan dan pengeluaran per rekening</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        <div class="relative flex-grow sm:flex-grow-0">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <i class="fa-solid fa-search"></i>
+                            </span>
+                            <input type="text" id="search-input" oninput="renderTransactions()" placeholder="Cari keterangan..." class="w-full sm:w-56 pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <select id="filter-type" onchange="renderTransactions()" class="py-2 px-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="all">Semua Jenis</option>
+                            <option value="income">Pemasukan</option>
+                            <option value="expense">Pengeluaran</option>
+                        </select>
+                        <select id="filter-account" onchange="renderTransactions()" class="py-2 px-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="all">Semua Rekening</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-100 text-xs uppercase font-semibold text-slate-400">
+                                <th class="py-3 px-4">Tanggal</th>
+                                <th class="py-3 px-4">Rekening</th>
+                                <th class="py-3 px-4">Kategori</th>
+                                <th class="py-3 px-4">Keterangan</th>
+                                <th class="py-3 px-4">Jenis</th>
+                                <th class="py-3 px-4 text-right">Jumlah</th>
+                                <th class="py-3 px-4 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transaction-table-body" class="divide-y divide-slate-100 text-sm">
+                            <!-- Transactions list -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- BUDGET VIEW -->
+        <section id="view-budget" class="space-y-6 hidden">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-6">
+                <div class="border-b border-slate-100 pb-4">
+                    <h3 class="font-bold text-lg text-slate-800">Target & Batas Anggaran Bulanan</h3>
+                    <p class="text-xs text-slate-500">Atur batas maksimal pengeluaran per kategori</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="budget-list-container">
+                    <!-- Budgets list -->
+                </div>
+            </div>
+        </section>
+
+        <!-- GUIDE VIEW -->
+        <section id="view-guide" class="space-y-6 hidden">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-6">
+                <div class="border-b border-slate-100 pb-4">
+                    <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-book-open text-indigo-600 mr-2"></i> Panduan Google Sheets & Apps Script</h3>
+                    <p class="text-xs text-slate-500">Sinkronisasi data multi-rekening ke Google Spreadsheet.</p>
+                </div>
+                <div class="space-y-4 text-sm text-slate-700 leading-relaxed">
+                    <p>Pastikan sheet Google Sheets Anda memiliki tab <code class="bg-slate-100 px-2 py-0.5 rounded font-mono text-xs">transactions</code>, <code class="bg-slate-100 px-2 py-0.5 rounded font-mono text-xs">budgets</code>, dan <code class="bg-slate-100 px-2 py-0.5 rounded font-mono text-xs">accounts</code>.</p>
+                    <p>Gunakan Google Apps Script yang mendukung penyimpanan data objek multi-rekening.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal Transaksi -->
+    <div id="transactionModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 id="modal-title" class="font-bold text-lg text-slate-800">Tambah Transaksi</h3>
+                <button type="button" onclick="closeModal('transactionModal')" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="transaction-form" onsubmit="handleTransactionSubmit(event)" class="space-y-4">
+                <input type="hidden" id="tx-id">
+                <input type="hidden" id="tx-type" value="expense">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Rekening / Dompet</label>
+                    <select id="tx-account" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        <!-- Accounts dropdown -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Jumlah (Rp)</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 font-semibold text-sm">Rp</span>
+                        <input type="number" id="tx-amount" required min="1" placeholder="0" class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Kategori</label>
+                    <select id="tx-category" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        <!-- Categories -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tanggal</label>
+                    <input type="date" id="tx-date" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Keterangan / Catatan</label>
+                    <textarea id="tx-note" rows="2" placeholder="Contoh: Gaji bulan ini, Beli token listrik..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"></textarea>
+                </div>
+
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" onclick="closeModal('transactionModal')" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-xl font-semibold text-sm transition cursor-pointer">Batal</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-semibold text-sm transition shadow cursor-pointer">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Tambah Rekening -->
+    <div id="accountModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-5">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-lg text-slate-800">Tambah Rekening Baru</h3>
+                <button type="button" onclick="closeModal('accountModal')" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAccountSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Rekening / Dompet</label>
+                    <input type="text" id="acc-name" required placeholder="Contoh: BCA, Mandiri, E-Wallet" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Saldo Awal (Rp)</label>
+                    <input type="number" id="acc-balance" required min="0" value="0" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                </div>
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" onclick="closeModal('accountModal')" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-xl font-semibold text-sm transition cursor-pointer">Batal</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-semibold text-sm transition shadow cursor-pointer">Tambah</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Google Sheets Sync -->
+    <div id="syncModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-lg text-slate-800">Koneksi Google Sheets</h3>
+                <button type="button" onclick="closeModal('syncModal')" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <p class="text-xs text-slate-500">Masukkan URL Web App Google Apps Script Anda.</p>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Web App URL</label>
+                    <input type="text" id="api-url-input" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono">
+                </div>
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" onclick="saveApiUrl()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-semibold text-sm transition shadow cursor-pointer">Simpan & Muat Data</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ekspor / Impor -->
+    <div id="exportModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-lg text-slate-800">Ekspor & Cadangan Data</h3>
+                <button type="button" onclick="closeModal('exportModal')" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <button type="button" onclick="exportDataJson()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-semibold text-sm transition flex items-center justify-center space-x-2 cursor-pointer">
+                    <i class="fa-solid fa-file-arrow-down"></i>
+                    <span>Unduh File Cadangan (JSON)</span>
+                </button>
+                <hr class="border-slate-100">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Pulihkan Data</label>
+                    <input type="file" id="import-file" accept=".json" onchange="importDataJson(event)" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 cursor-pointer">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toast-msg" class="text-sm font-medium">Berhasil disimpan</span>
+    </div>
+
+    <script>
+        const CATEGORIES = {
+            income: ['Gaji', 'Bonus', 'Investasi', 'Hadiah', 'Penjualan', 'Lainnya (Pemasukan)'],
+            expense: ['Makanan & Minuman', 'Transportasi', 'Belanja', 'Tagihan & Utilitas', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Lainnya (Pengeluaran)']
+        };
+
+        const DEFAULT_ACCOUNTS = [
+            { id: 'acc_bca', name: 'Bank BCA', initialBalance: 2000000, color: 'bg-blue-600' },
+            { id: 'acc_mandiri', name: 'Bank Mandiri', initialBalance: 1500000, color: 'bg-amber-600' },
+            { id: 'acc_cash', name: 'Dompet Tunai (Cash)', initialBalance: 500000, color: 'bg-emerald-600' }
+        ];
+
+        const DEFAULT_BUDGETS = {
+            'Makanan & Minuman': 1500000,
+            'Transportasi': 600000,
+            'Belanja': 1000000,
+            'Tagihan & Utilitas': 800000,
+            'Hiburan': 400000,
+            'Kesehatan': 500000,
+            'Pendidikan': 500000,
+            'Lainnya (Pengeluaran)': 300000
+        };
+
+        let appData = {
+            accounts: DEFAULT_ACCOUNTS,
+            transactions: [],
+            budgets: DEFAULT_BUDGETS
+        };
+
+        let API_URL = localStorage.getItem('dompetku_api_url') || '';
+        let categoryChartInstance = null;
+        let trendChartInstance = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedUrl = document.getElementById('api-url-input');
+            if(savedUrl) savedUrl.value = API_URL;
+            loadData();
+            initCharts();
+            refreshApp();
+        });
+
+        async function loadData() {
+            if (API_URL) {
+                try {
+                    const response = await fetch(`${API_URL}?action=getData`);
+                    const result = await response.json();
+                    if (result && result.transactions) {
+                        appData = result;
+                        if (!appData.accounts || appData.accounts.length === 0) appData.accounts = DEFAULT_ACCOUNTS;
+                        if (!appData.budgets || Object.keys(appData.budgets).length === 0) appData.budgets = DEFAULT_BUDGETS;
+                        localStorage.setItem('dompetku_data', JSON.stringify(appData));
+                        refreshApp();
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Gagal sinkronisasi online, menggunakan cache lokal", e);
+                }
+            }
+
+            const savedData = localStorage.getItem('dompetku_data');
+            if (savedData) {
+                try {
+                    appData = JSON.parse(savedData);
+                    if (!appData.accounts) appData.accounts = DEFAULT_ACCOUNTS;
+                } catch (e) {
+                    appData = { accounts: DEFAULT_ACCOUNTS, transactions: [], budgets: DEFAULT_BUDGETS };
+                }
+            } else {
+                appData = {
+                    accounts: DEFAULT_ACCOUNTS,
+                    transactions: [
+                        { id: '1', accountId: 'acc_bca', type: 'income', amount: 5000000, category: 'Gaji', date: new Date().toISOString().split('T')[0], note: 'Gaji Bulanan BCA' },
+                        { id: '2', accountId: 'acc_cash', type: 'expense', amount: 50000, category: 'Makanan & Minuman', date: new Date().toISOString().split('T')[0], note: 'Makan siang' }
+                    ],
+                    budgets: DEFAULT_BUDGETS
+                };
+                saveDataLocally();
+            }
+        }
+
+        async function saveData() {
+            saveDataLocally();
+            if (API_URL) {
+                try {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ action: 'saveAll', ...appData })
+                    });
+                    showToast("Tersinkron ke Google Sheets");
+                } catch (e) {
+                    console.error("Gagal sinkronisasi online", e);
+                    showToast("Tersimpan secara lokal (Offline)", "error");
+                }
+            } else {
+                showToast("Berhasil disimpan (Lokal)");
+            }
+        }
+
+        function saveDataLocally() {
+            localStorage.setItem('dompetku_data', JSON.stringify(appData));
+        }
+
+        function saveApiUrl() {
+            API_URL = document.getElementById('api-url-input').value.trim();
+            localStorage.setItem('dompetku_api_url', API_URL);
+            closeModal('syncModal');
+            showToast("URL disimpan. Memuat data...");
+            loadData();
+        }
+
+        function switchTab(tabName) {
+            ['dashboard', 'transactions', 'budget', 'guide'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).className = "px-5 py-2.5 rounded-xl font-semibold text-sm transition bg-white text-slate-600 hover:bg-slate-100 flex items-center space-x-2 whitespace-nowrap cursor-pointer";
+            });
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).className = "px-5 py-2.5 rounded-xl font-semibold text-sm transition bg-indigo-600 text-white shadow-sm flex items-center space-x-2 whitespace-nowrap cursor-pointer";
+
+            if (tabName === 'dashboard') updateCharts();
+            else if (tabName === 'budget') renderBudgets();
+        }
+
+        function refreshApp() {
+            renderAccountsSummary();
+            updateDashboardCards();
+            generateInsights();
+            renderTransactions();
+            renderBudgets();
+            updateCharts();
+            updateAccountFilters();
+        }
+
+        function renderAccountsSummary() {
+            const container = document.getElementById('accounts-cards-container');
+            container.innerHTML = '';
+
+            // Calculate balance per account
+            const balances = {};
+            appData.accounts.forEach(acc => {
+                balances[acc.id] = Number(acc.initialBalance || 0);
+            });
+
+            appData.transactions.forEach(tx => {
+                const amt = Number(tx.amount);
+                if (balances[tx.accountId] !== undefined) {
+                    if (tx.type === 'income') balances[tx.accountId] += amt;
+                    else balances[tx.accountId] -= amt;
+                }
+            });
+
+            appData.accounts.forEach(acc => {
+                const bal = balances[acc.id] || 0;
+                const div = document.createElement('div');
+                div.className = "bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden flex flex-col justify-between";
+                div.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">${acc.name}</p>
+                            <h4 class="text-xl font-extrabold text-slate-800 mt-1">${formatRupiah(bal)}</h4>
+                        </div>
+                        <button type="button" onclick="deleteAccount('${acc.id}')" class="text-slate-300 hover:text-rose-500 transition text-xs p-1 cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-slate-50 flex justify-between items-center text-xs text-slate-500">
+                        <span>Saldo Aktif</span>
+                        <span class="w-2.5 h-2.5 rounded-full ${acc.color || 'bg-indigo-600'}"></span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updateDashboardCards() {
+            let totalIncome = 0;
+            let totalExpense = 0;
+            let totalOverallBalance = 0;
+
+            const balances = {};
+            appData.accounts.forEach(acc => balances[acc.id] = Number(acc.initialBalance || 0));
+
+            appData.transactions.forEach(tx => {
+                const amt = Number(tx.amount);
+                if (balances[tx.accountId] !== undefined) {
+                    if (tx.type === 'income') balances[tx.accountId] += amt;
+                    else balances[tx.accountId] -= amt;
+                }
+            });
+
+            for (let id in balances) {
+                totalOverallBalance += balances[id];
+            }
+
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+
+            appData.transactions.forEach(tx => {
+                const txDate = new Date(tx.date);
+                const amt = Number(tx.amount);
+                if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
+                    if (tx.type === 'income') totalIncome += amt;
+                    else totalExpense += amt;
+                }
+            });
+
+            document.getElementById('card-balance').innerText = formatRupiah(totalOverallBalance);
+            document.getElementById('card-income').innerText = formatRupiah(totalIncome);
+            document.getElementById('card-expense').innerText = formatRupiah(totalExpense);
+
+            const statusEl = document.getElementById('balance-status');
+            if (totalIncome >= totalExpense) {
+                statusEl.className = "font-medium text-emerald-600 flex items-center";
+                statusEl.innerHTML = `<i class="fa-solid fa-arrow-up mr-1"></i> Arus kas stabil`;
+            } else {
+                statusEl.className = "font-medium text-rose-600 flex items-center";
+                statusEl.innerHTML = `<i class="fa-solid fa-arrow-down mr-1"></i> Pengeluaran tinggi`;
+            }
+        }
+
+        function generateInsights() {
+            const container = document.getElementById('insight-container');
+            container.innerHTML = '';
+            const now = new Date();
+            let monthIncome = 0, monthExpense = 0;
+            const catExpenses = {};
+
+            appData.transactions.forEach(tx => {
+                const txDate = new Date(tx.date);
+                if (txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()) {
+                    const amt = Number(tx.amount);
+                    if (tx.type === 'income') monthIncome += amt;
+                    else {
+                        monthExpense += amt;
+                        catExpenses[tx.category] = (catExpenses[tx.category] || 0) + amt;
+                    }
+                }
+            });
+
+            const insights = [];
+            if (monthIncome > 0) {
+                const savingRate = ((monthIncome - monthExpense) / monthIncome) * 100;
+                if (savingRate >= 20) insights.push({ icon: 'fa-circle-check text-emerald-500 bg-emerald-50', title: 'Tabungan Sehat', desc: `Tingkat tabungan bulan ini mencapai ${savingRate.toFixed(1)}%.` });
+                else insights.push({ icon: 'fa-triangle-exclamation text-amber-500 bg-amber-50', title: 'Perhatikan Pengeluaran', desc: `Tabungan baru mencapai ${savingRate.toFixed(1)}%. Target minimal 20%.` });
+            } else {
+                insights.push({ icon: 'fa-info text-indigo-500 bg-indigo-50', title: 'Belum Ada Pemasukan', desc: 'Catat pemasukan untuk mulai melacak arus kas rekening.' });
+            }
+
+            let maxCat = '', maxAmt = 0;
+            for (let cat in catExpenses) {
+                if (catExpenses[cat] > maxAmt) { maxAmt = catExpenses[cat]; maxCat = cat; }
+            }
+            if (maxCat) insights.push({ icon: 'fa-chart-pie text-violet-500 bg-violet-50', title: `Pengeluaran Terbesar: ${maxCat}`, desc: `Kategori ${maxCat} menghabiskan ${formatRupiah(maxAmt)}.` });
+
+            insights.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "flex items-start space-x-3 p-4 bg-slate-50 rounded-xl border border-slate-100";
+                div.innerHTML = `
+                    <div class="p-2.5 rounded-xl text-lg flex-shrink-0 ${item.icon.split(' ')[1]}"><i class="fa-solid ${item.icon.split(' ')[0]}"></i></div>
+                    <div>
+                        <h4 class="font-semibold text-slate-800 text-sm">${item.title}</h4>
+                        <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">${item.desc}</p>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function renderTransactions() {
+            const tbody = document.getElementById('transaction-table-body');
+            tbody.innerHTML = '';
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const filterType = document.getElementById('filter-type').value;
+            const filterAcc = document.getElementById('filter-account').value;
+
+            const filtered = appData.transactions.filter(tx => {
+                const matchSearch = tx.note.toLowerCase().includes(search) || tx.category.toLowerCase().includes(search);
+                const matchType = filterType === 'all' || tx.type === filterType;
+                const matchAcc = filterAcc === 'all' || tx.accountId === filterAcc;
+                return matchSearch && matchType && matchAcc;
+            }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-slate-400 text-sm">Tidak ada transaksi ditemukan.</td></tr>`;
+                return;
+            }
+
+            const accountMap = {};
+            appData.accounts.forEach(acc => accountMap[acc.id] = acc.name);
+
+            filtered.forEach(tx => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition";
+                const isIncome = tx.type === 'income';
+                const accName = accountMap[tx.accountId] || 'Rekening Umum';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-slate-600 text-xs">${formatDate(tx.date)}</td>
+                    <td class="py-3 px-4 text-xs font-semibold text-indigo-600">${accName}</td>
+                    <td class="py-3 px-4 text-slate-800 text-xs"><span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">${tx.category}</span></td>
+                    <td class="py-3 px-4 text-slate-600 text-xs">${tx.note || '-'}</td>
+                    <td class="py-3 px-4 text-xs"><span class="px-2.5 py-1 rounded-full text-xs font-semibold ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}">${isIncome ? 'Pemasukan' : 'Pengeluaran'}</span></td>
+                    <td class="py-3 px-4 text-right font-bold text-xs ${isIncome ? 'text-emerald-600' : 'text-slate-800'}">${isIncome ? '+' : '-'} ${formatRupiah(tx.amount)}</td>
+                    <td class="py-3 px-4 text-center space-x-1">
+                        <button type="button" onclick="editTransaction('${tx.id}')" class="text-slate-400 hover:text-indigo-600 p-1.5 transition cursor-pointer"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button type="button" onclick="deleteTransaction('${tx.id}')" class="text-slate-400 hover:text-rose-600 p-1.5 transition cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateAccountFilters() {
+            const selectAcc = document.getElementById('filter-account');
+            const selectTxAcc = document.getElementById('tx-account');
+            if(!selectAcc || !selectTxAcc) return;
+
+            const currentAccFilter = selectAcc.value;
+            const currentTxAcc = selectTxAcc.value;
+
+            selectAcc.innerHTML = '<option value="all">Semua Rekening</option>';
+            selectTxAcc.innerHTML = '';
+
+            appData.accounts.forEach(acc => {
+                const opt1 = document.createElement('option');
+                opt1.value = acc.id;
+                opt1.innerText = acc.name;
+                selectAcc.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = acc.id;
+                opt2.innerText = acc.name;
+                selectTxAcc.appendChild(opt2);
+            });
+
+            selectAcc.value = currentAccFilter;
+            if(currentTxAcc) selectTxAcc.value = currentTxAcc;
+        }
+
+        function openTransactionModal(type, id = null) {
+            updateAccountFilters();
+            const modal = document.getElementById('transactionModal');
+            document.getElementById('modal-title').innerText = type === 'income' ? 'Tambah Pemasukan ke Rekening' : 'Tambah Pengeluaran dari Rekening';
+            const form = document.getElementById('transaction-form');
+            form.reset();
+            document.getElementById('tx-id').value = '';
+            document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('tx-type').value = type;
+
+            const catSelect = document.getElementById('tx-category');
+            catSelect.innerHTML = '';
+            CATEGORIES[type].forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.innerText = cat;
+                catSelect.appendChild(opt);
+            });
+
+            if (id) {
+                const tx = appData.transactions.find(t => t.id === id);
+                if (tx) {
+                    document.getElementById('tx-id').value = tx.id;
+                    document.getElementById('tx-type').value = tx.type;
+                    document.getElementById('tx-account').value = tx.accountId;
+                    document.getElementById('tx-amount').value = tx.amount;
+                    document.getElementById('tx-date').value = tx.date;
+                    document.getElementById('tx-note').value = tx.note;
+                }
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function openAccountModal() {
+            document.getElementById('accountModal').classList.remove('hidden');
+        }
+
+        function handleAccountSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('acc-name').value.trim();
+            const initialBalance = Number(document.getElementById('acc-balance').value);
+            const id = 'acc_' + Date.now();
+            const colors = ['bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-violet-600', 'bg-rose-600'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+
+            appData.accounts.push({ id, name, initialBalance, color });
+            saveData();
+            closeModal('accountModal');
+            refreshApp();
+        }
+
+        function deleteAccount(id) {
+            if (appData.accounts.length <= 1) {
+                showToast("Minimal harus ada 1 rekening aktif", "error");
+                return;
+            }
+            if (confirm("Hapus rekening ini? Seluruh transaksi terkait juga akan dihapus.")) {
+                appData.accounts = appData.accounts.filter(acc => acc.id !== id);
+                appData.transactions = appData.transactions.filter(tx => tx.accountId !== id);
+                saveData();
+                refreshApp();
+            }
+        }
+
+        function handleTransactionSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('tx-id').value;
+            const accountId = document.getElementById('tx-account').value;
+            const type = document.getElementById('tx-type').value;
+            const amount = Number(document.getElementById('tx-amount').value);
+            const category = document.getElementById('tx-category').value;
+            const date = document.getElementById('tx-date').value;
+            const note = document.getElementById('tx-note').value;
+
+            if (id) {
+                const idx = appData.transactions.findIndex(t => t.id === id);
+                if (idx !== -1) appData.transactions[idx] = { id, accountId, type, amount, category, date, note };
+            } else {
+                appData.transactions.push({ id: Date.now().toString(), accountId, type, amount, category, date, note });
+            }
+
+            saveData();
+            closeModal('transactionModal');
+            refreshApp();
+        }
+
+        function editTransaction(id) {
+            const tx = appData.transactions.find(t => t.id === id);
+            if (tx) {
+                openTransactionModal(tx.type, id);
+                document.getElementById('tx-account').value = tx.accountId;
+            }
+        }
+
+        function deleteTransaction(id) {
+            if (confirm("Hapus transaksi ini?")) {
+                appData.transactions = appData.transactions.filter(t => t.id !== id);
+                saveData();
+                refreshApp();
+            }
+        }
+
+        function renderBudgets() {
+            const container = document.getElementById('budget-list-container');
+            container.innerHTML = '';
+            const now = new Date();
+            const catExpenses = {};
+
+            appData.transactions.forEach(tx => {
+                const txDate = new Date(tx.date);
+                if (tx.type === 'expense' && txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()) {
+                    catExpenses[tx.category] = (catExpenses[tx.category] || 0) + Number(tx.amount);
+                }
+            });
+
+            CATEGORIES.expense.forEach(cat => {
+                const limit = appData.budgets[cat] || 1000000;
+                const spent = catExpenses[cat] || 0;
+                const percentage = Math.min(Math.round((spent / limit) * 100), 100);
+                let barColor = 'bg-indigo-600';
+                if (percentage >= 90) barColor = 'bg-rose-500';
+                else if (percentage >= 75) barColor = 'bg-amber-500';
+
+                const div = document.createElement('div');
+                div.className = "bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3";
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-semibold text-slate-800 text-sm">${cat}</h4>
+                        <button type="button" onclick="editBudgetLimit('${cat}')" class="text-xs text-indigo-600 hover:underline font-medium cursor-pointer">Ubah Batas</button>
+                    </div>
+                    <div class="flex justify-between text-xs text-slate-500">
+                        <span>Terpakai: <strong class="text-slate-800">${formatRupiah(spent)}</strong></span>
+                        <span>Batas: <strong class="text-slate-800">${formatRupiah(limit)}</strong></span>
+                    </div>
+                    <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                        <div class="${barColor} h-2.5 rounded-full transition-all duration-500" style="width: ${percentage}%"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="${percentage >= 90 ? 'text-rose-600 font-semibold' : 'text-slate-400'}">${percentage}% dari anggaran</span>
+                        <span class="text-slate-500">Sisa: ${formatRupiah(Math.max(limit - spent, 0))}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function editBudgetLimit(category) {
+            const currentLimit = appData.budgets[category] || 1000000;
+            const newLimitStr = prompt(`Masukkan batas anggaran untuk ${category}:`, currentLimit);
+            if (newLimitStr !== null) {
+                const newLimit = Number(newLimitStr);
+                if (!isNaN(newLimit) && newLimit > 0) {
+                    appData.budgets[category] = newLimit;
+                    saveData();
+                    renderBudgets();
+                }
+            }
+        }
+
+        function initCharts() {
+            const ctxCat = document.getElementById('categoryChart').getContext('2d');
+            categoryChartInstance = new Chart(ctxCat, {
+                type: 'doughnut',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#64748b', '#ef4444'] }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+            });
+
+            const ctxTrend = document.getElementById('trendChart').getContext('2d');
+            trendChartInstance = new Chart(ctxTrend, {
+                type: 'bar',
+                data: { labels: [], datasets: [
+                    { label: 'Pemasukan', data: [], backgroundColor: '#10b981', borderRadius: 6 },
+                    { label: 'Pengeluaran', data: [], backgroundColor: '#ef4444', borderRadius: 6 }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function updateCharts() {
+            const now = new Date();
+            const catMap = {};
+
+            appData.transactions.forEach(tx => {
+                const txDate = new Date(tx.date);
+                if (tx.type === 'expense' && txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()) {
+                    catMap[tx.category] = (catMap[tx.category] || 0) + Number(tx.amount);
+                }
+            });
+
+            categoryChartInstance.data.labels = Object.keys(catMap).length > 0 ? Object.keys(catMap) : ['Belum Ada Data'];
+            categoryChartInstance.data.datasets[0].data = Object.values(catMap).length > 0 ? Object.values(catMap) : [1];
+            categoryChartInstance.update();
+
+            const monthsLabels = [];
+            const incomeData = [];
+            const expenseData = [];
+
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                monthsLabels.push(d.toLocaleString('id-ID', { month: 'short', year: '2-digit' }));
+
+                let mInc = 0, mExp = 0;
+                appData.transactions.forEach(tx => {
+                    const txDate = new Date(tx.date);
+                    if (txDate.getMonth() === d.getMonth() && txDate.getFullYear() === d.getFullYear()) {
+                        if (tx.type === 'income') mInc += Number(tx.amount);
+                        else mExp += Number(tx.amount);
+                    }
+                });
+                incomeData.push(mInc);
+                expenseData.push(mExp);
+            }
+
+            trendChartInstance.data.labels = monthsLabels;
+            trendChartInstance.data.datasets[0].data = incomeData;
+            trendChartInstance.data.datasets[1].data = expenseData;
+            trendChartInstance.update();
+        }
+
+        function formatRupiah(num) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
+        }
+
+        function formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            document.getElementById('toast-icon').className = type === 'success' ? "fa-solid fa-circle-check text-emerald-400" : "fa-solid fa-circle-exclamation text-rose-400";
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        function exportDataJson() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", `dompetku_multirekening.json`);
+            document.body.appendChild(dl);
+            dl.click();
+            dl.remove();
+            closeModal('exportModal');
+            showToast("Data diekspor");
+        }
+
+        function importDataJson(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.transactions && parsed.accounts) {
+                        appData = parsed;
+                        saveData();
+                        refreshApp();
+                        closeModal('exportModal');
+                        showToast("Data berhasil dipulihkan");
+                    }
+                } catch (err) {
+                    showToast("Gagal membaca file JSON", "error");
+                }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
